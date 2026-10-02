@@ -13,8 +13,19 @@ import json
 import os
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-
 from nano_ultra_james import VERSION, NanoUltraJames
+from flask import Flask
+from flask_cors import CORS
+
+app = Flask(__name__)
+CORS(app)  # Allows your GitHub Pages site to send requests to this backend
+
+# ... [your existing routes and logic here] ...
+
+if __name__ == "__main__":
+    # Render sets the PORT environment variable automatically
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 WEIGHTS_FILE = os.path.join(ROOT, "weights.json")
