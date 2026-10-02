@@ -8,6 +8,7 @@ Run:
 Then access: http://localhost:8000
 """
 
+from config import PENALTIES, THRESHOLDS, WEIGHTS
 import json
 import os
 import threading
