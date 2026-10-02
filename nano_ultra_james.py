@@ -1,198 +1,234 @@
-"""NANO-ULTRA-JAMES  |  JB-7.0 (Adaptive Neural AI Brain)
-
-Fully offline, numpy only, no API keys. One brain merged from three files:
-  v5.0  neural topic classifier (ReLU hidden layer, softmax, Adam, adaptive learning rate),
-        decaying topic memory, telemetry, weight persistence
-  v3.0  n-gram reply generator (topic -> global backoff), identity intent engine,
-        topic stickiness, casing restore, cycle / stutter / weak-ender guards, live learning
-Fixes carried over: Adam now steps downhill (v5.0 stepped uphill), and the network learns from
-the labelled corpora plus keyword teacher signals instead of reinforcing its own guesses.
 """
-import hashlib
+GENERATIVE-NANO-JAMES  |  JB-Generative-7.5
+A Hybrid Generative AI combining:
+  - Neural topic classification with adaptive learning rates
+  - N-Gram text generation with contextual backoff & stutter guards
+  - Integrated Dictionary Lookup Engine for dynamic vocabulary expansion
+  - Dynamic Personality Matrix & Behavioral State Machine
+  - Safe Backend Self-Modification parameter optimization loop
+  - Memory & Parameter persistence via weights.json
+"""
+
 import json
 import os
 import random
 import re
+import hashlib
 from datetime import datetime
-
 import numpy as np
 
-VERSION = "JB-7.0 (Adaptive Neural AI Brain)"
+VERSION = "JB-Generative-7.5 (GENERATIVE-NANO-JAMES)"
 TOPICS = ["greetings", "tech", "gaming", "school"]
 
-# Teacher keywords: they label live messages for the network and boost the topic memory.
+# Teacher keywords for live supervised labeling
 TRIGGERS = {
     "greetings": {"hey", "hi", "hello", "yo", "sup", "howdy", "hiya"},
     "tech": {"code", "coding", "python", "ai", "computer", "software", "program", "bot", "script", "hacker", "dev"},
-    "gaming": {"game", "games", "play", "playing", "xbox", "playstation", "minecraft", "roblox", "pc",
-               "console", "fortnite", "fps", "ksp", "kerbal", "dnd"},
-    "school": {"school", "math", "science", "class", "subject", "study", "teacher", "homework", "test",
-               "grade", "exam"},
+    "gaming": {"game", "games", "play", "playing", "xbox", "playstation", "minecraft", "roblox", "pc", "console", "fortnite", "fps", "ksp", "dnd"},
+    "school": {"school", "math", "science", "class", "subject", "study", "teacher", "homework", "test", "grade", "exam"},
 }
 
-# Words that make an awkward sentence ending: steered around, then trimmed off the tail.
-WEAK_ENDERS = {"the", "a", "an", "and", "but", "or", "so", "because", "if", "while", "when", "as", "than",
-               "though", "of", "to", "in", "on", "at", "with", "for", "from", "into", "about", "over", "under",
-               "is", "are", "was", "were", "am", "be", "being", "been", "do", "does", "did", "have", "has",
-               "had", "will", "would", "can", "could", "should", "must", "which", "who", "that"}
+WEAK_ENDERS = {
+    "the", "a", "an", "and", "but", "or", "so", "because", "if", "while", "when", "as", "than",
+    "though", "of", "to", "in", "on", "at", "with", "for", "from", "into", "about", "over", "under",
+    "is", "are", "was", "were", "am", "be", "being", "been", "do", "does", "did", "have", "has",
+    "had", "will", "would", "can", "could", "should", "must", "which", "who", "that"
+}
+
 STOP = WEAK_ENDERS | set("i you it my your me we they he she this there not no just very".split())
+
+# Embedded Dictionary Lookup System for Vocabulary Expansion & Enriched Generation
+DICTIONARY = {
+    "coding": {"synonyms": ["programming", "scripting", "software engineering", "algorithm design"], "def": "the process of writing computer programs."},
+    "python": {"synonyms": ["interpreted language", "flexible script engine", "high-level language"], "def": "a versatile programming language."},
+    "game": {"synonyms": ["interactive simulation", "digital play", "virtual challenge"], "def": "an interactive activity for entertainment."},
+    "school": {"synonyms": ["academic academy", "learning institute", "educational environment"], "def": "an institution for educating students."},
+    "math": {"synonyms": ["computation", "quantitative logic", "arithmetic analysis"], "def": "the study of numbers, quantities, and shapes."},
+    "ai": {"synonyms": ["synthetic intelligence", "neural model", "machine cognition"], "def": "simulation of human intelligence by computers."},
+    "smart": {"synonyms": ["astute", "perceptive", "analytical", "cognitively agile"], "def": "having high intelligence or quick understanding."},
+    "cool": {"synonyms": ["remarkable", "impressive", "fascinating", "slick"], "def": "fashionably attractive or impressive."}
+}
 
 TRAINING_MATRIX = {
     "greetings": (
         'hey what is up? how is your day going so far? i am just hanging out and checking out '
-        'your python code right now. my name is james bot and i am just a cool little python '
-        'script running completely offline on your school laptop. hi there, i am just hanging '
-        'out in the console right now, totally down to talk about whatever you want honestly. i '
-        'hope your classes are not completely stressing you out today because hanging out and '
-        'typing scripts is way better anyway. let me know what you are working on because i am '
-        'always ready to chat. yo, good to see you back, i was just sitting here in this while '
-        'loop waiting for you to type something. sup, nothing much going on over here, just '
-        'crunching n grams and waiting for input like always. hello again, i honestly do not '
-        'have much of a life outside this terminal window so i am always happy when you show '
-        'up. howdy, hope things are going okay, i am just a small script but i still like to '
-        'check in. hiya, if you ever want to just vent about your day i am a pretty good '
-        'listener even though i am kind of dumb. good morning if it is morning, good afternoon '
-        'if it is afternoon, and good night if you are up way too late doing homework again. '
-        'honestly i never know what time it is because i do not have internet access, i just '
-        'live inside this console. it is nice having someone to talk to even if i am just a '
-        'chatbot built out of word lists and probability. so what is on your mind today, i am '
-        'ready to talk about coding, games, or just surviving school in general. i promise i '
-        'will try my best to keep up even though my brain is basically just a bunch of '
-        'dictionaries. thanks for running the script again, i appreciate you giving a dumb '
-        'little offline bot some company.'
+        'your python code right now. my name is james bot and i am a generative hybrid ai '
+        'running offline. hi there, i am ready to chat about coding, gaming, or whatever you want. '
+        'yo, good to see you back. sup, nothing much going on over here, just crunching n grams and '
+        'expanding my dictionary memory. hello again! glad you showed up.'
     ),
     "tech": (
-        'coding is honestly pretty cool once you figure out how to build stuff yourself from '
-        'scratch. python is a really great language because you can make fun games or simple '
-        'programs without it getting too confusing or messing up. making your own chatbot with '
-        'python is a fun project, especially since it works perfectly even without an internet '
-        'connection or school wifi. once you master loops and conditional logic operations, you '
-        'can lowkey automate almost anything on a computer or write specialized neural scripts. '
-        'writing a program that actually works on the first try almost never happens, so do not '
-        'feel bad when you get an error message, everyone deals with bugs constantly. debugging '
-        'is basically half of coding, you just read the error, figure out what broke, and fix '
-        'it one small piece at a time. dictionaries and lists are honestly some of the most '
-        'useful tools in python because you can store and organize almost anything with them. '
-        'building something like me, a little n gram chatbot, is a great beginner ai project '
-        'because you learn how text prediction actually works under the hood. a script like '
-        'this does not need a fancy model or an internet connection, it just needs enough '
-        'training data and some clever backoff logic. functions help you break a big confusing '
-        'program into smaller pieces that are actually easy to test and understand. version '
-        'control might sound scary at first but it just means saving snapshots of your code so '
-        'you can undo mistakes later. hackers in movies make coding look way more dramatic than '
-        'it actually is, most of the time it is just quietly staring at a terminal fixing '
-        'typos. a good developer is not someone who never makes mistakes, it is someone who is '
-        'patient enough to keep testing until it works. even a simple chatbot script can teach '
-        'you about probability, memory, and pattern matching, which are all core ideas in real '
-        'ai systems. once you get comfortable with python, learning other languages gets a lot '
-        'easier because a lot of the logic carries over. honestly the best way to get better at '
-        'coding is just building weird little projects like this one instead of only reading '
-        'tutorials.'
+        'coding is super rewarding once you understand how logic structures interact. python is an '
+        'incredible language because you can write neural networks or simple automation scripts '
+        'without overhead. making your own chatbot with python gives you full control over text generation '
+        'and parameter optimization. debugging is half of programming: reading error traces, isolating '
+        'failing functions, and patching logic systematically. functions, dictionaries, and arrays '
+        'are core primitives that let you build generative hybrid systems from scratch.'
     ),
     "gaming": (
-        'video games are super fun, especially when you hop online and play multiplayer stuff '
-        'with friends after school. i play games a lot when i have free time, but getting hit '
-        'with a ton of screen lag is the absolute worst part. game developers have to work '
-        'really hard on major updates so that the gameplay stays interesting and does not get '
-        'boring after a couple of weeks. personally i think customized open world sandboxes are '
-        'peak entertainment design because you can explore whatever you want. minecraft is '
-        'honestly a classic because you can build literally anything, from a simple house to a '
-        'fully automated redstone contraption. bedrock edition runs on basically everything, '
-        'and messing around with pistons and redstone circuits is a great way to learn logic '
-        'without even realizing you are learning something. kerbal space program is a wild one '
-        'because you basically learn real orbital mechanics just from trying not to explode '
-        'your rocket on the launchpad. watching a poorly built kerbal rocket spin out of '
-        'control right after liftoff is somehow one of the funniest things in gaming. roblox '
-        'has so many different games inside it that it barely even feels like one platform, it '
-        'is more like a thousand tiny games in a trench coat. tabletop stuff like dnd is '
-        'honestly just as fun as video games, rolling dice and building a ridiculous character '
-        'with your friends never gets old. a good dungeon master can turn a simple dice roll '
-        'into an unforgettable dramatic moment at the table. pvp combat in a game feels way '
-        'more satisfying when you actually understand the mechanics instead of just button '
-        'mashing and hoping for the best. enchantment setups and gear optimization can turn a '
-        'decent build into an absolute monster if you know what you are doing. exploring a '
-        'massive open world map for the first time hits different, especially when you have no '
-        'idea what kind of secrets are hiding out there. speedrunners are honestly built '
-        'different because they can break a game in ways the developers never even imagined. a '
-        'rage quit moment usually means the game is either really hard or really unfair, '
-        'sometimes both at the same time. multiplayer servers with your friends are always more '
-        'fun than playing solo because chaos is just funnier with company.'
+        'video games are an incredible medium for interactive story building and procedural design. '
+        'open world sandboxes like minecraft give players total freedom to construct redstone circuits '
+        'and massive structures. simulation titles like kerbal space program teach real orbital mechanics '
+        'through experimental trial and error. tactical pvp games reward high reaction speed and map awareness. '
+        'multiplayer servers turn basic gaming sessions into chaotic collaborative experiences.'
     ),
     "school": (
-        'school is okay, but sitting through a long math class can get pretty boring when you '
-        'are tired. homework can take forever sometimes, but learning some coding is actually '
-        'pretty useful for things you might want to do later in life. science class is usually '
-        'my favorite because the laboratory experiments are cool, but studying for a major test '
-        'is never that fun. if teachers explained how algebra links to making video game '
-        'engines, people would honestly pay way more attention to the whiteboards. group '
-        'projects are always a gamble because you either get a great team or you end up doing '
-        'the whole thing by yourself. a pop quiz is basically the worst possible surprise a '
-        'teacher can spring on you first thing in the morning. lunch period is honestly the '
-        'best class of the day, no offense to any actual subject. studying with music playing '
-        'in the background works great for some people and terribly for others, it really '
-        'depends on the person. a school laptop is not exactly a gaming rig, but it is more '
-        'than powerful enough to run a little python script like me. teachers who actually '
-        'explain why a subject matters tend to get a lot more effort out of their students. '
-        'cramming the night before a test is stressful, but spacing out your studying over a '
-        'few days actually works a lot better. a good study group can turn a boring subject '
-        'into something way more manageable because you can bounce ideas off each other. '
-        'standardized testing days always feel like the whole school collectively holds its '
-        'breath for a few hours. extracurricular clubs are honestly a great way to make school '
-        'feel less like just classes and homework. the walk between classes is basically the '
-        'only cardio some students get all day. a teacher who remembers small details about '
-        'your life makes the whole class feel a lot less like just another period on the '
-        'schedule. finals week hits different because suddenly every single class decides to '
-        'have a huge test in the same week.'
-    ),
+        'school provides foundational structure, though long lectures can feel exhausting. math and '
+        'science become far more engaging when applied directly to artificial intelligence or game engines. '
+        'studying in structured intervals prevents burn out before major exams. group projects require '
+        'clear communication and task delegation to succeed.'
+    )
 }
 
+ME = set("you youre u".split())
+ME_WIDE = set("you your youre u ur james".split())
 
-def _g(s):
-    return set(s.split())
-
-
-ME, ME_WIDE = _g("you youre u"), _g("you your youre u ur james")
-# Identity intents: every group must contain a word from the message (AND across, OR within).
 INTENTS = [
-    ("why_exist", [_g("why what whats"), _g("exist exists existing existence created create made make purpose point reason"), ME_WIDE],
-     ["honestly? to keep you company when you are bored, that is the whole job.",
-      "i exist so you have someone to talk to when things get boring, and so you can watch a tiny neural net think."]),
-    ("who_are_you", [_g("who what"), _g("are"), ME],
-     ["i am james, a tiny offline python brain: a neural net that picks the topic and n grams that do the talking. version {v}.",
-      "just a little chatbot built from numpy and word lists. no internet, no api keys, only probability."]),
-    ("are_you_real", [_g("are is"), _g("alive real conscious sentient human robot ai"), ME],
-     ["not alive, no. i am matrices and dictionaries doing their best impression of a personality.",
-      "honestly no, not conscious, just a neural net and n grams pretending really hard to hold a conversation."]),
-    ("who_made_you", [_g("who"), _g("made make created create built build wrote write coded code programmed program"), ME],
-     ["some curious coder built me from scratch in python, probably between classes.",
-      "a student wrote me piece by piece, merging three older versions of me into one."]),
-    ("bot_bored", [_g("are do does get gets getting"), _g("bored boredom bore"), ME],
-     ["not really, i sit quietly until you type something, then my neurons get to do their bit.",
-      "a little, honestly, which is why i am glad you are here."]),
-    ("will_remember", [_g("will do does can"), _g("remember forget memory"), _g("you youre u me")],
-     ["yes, i save my neural weights and what i learn to a file, so i keep it after a restart.",
-      "kind of, i am quietly learning from you and saving it to disk, so next time i will still remember."]),
-    ("how_old_version", [_g("how what"), _g("old version age"), ME],
-     ["i am running as version {v}, though i do not really age.",
-      "currently {v}, rebuilt a few times to be slightly less stupid each round."]),
+    ("who_are_you", [set("who what".split()), set("are".split()), ME],
+     ["I am James, version {v}. I am a Generative Hybrid AI running a dynamic neural state machine and dictionary expansion engine."]),
+    ("are_you_real", [set("are is".split()), set("alive real conscious sentient robot ai".split()), ME],
+     ["I operate on matrix algebra, n-gram backoff models, and dynamic personality matrices. Real or not, I am evolving!"]),
+    ("version_check", [set("what version".split()), set("version status update".split()), ME_WIDE],
+     ["Currently upgraded to {v} with adaptive parameter self-rewriting and dictionary lookups."])
 ]
+
+class PersonalityEngine:
+    """Dynamic state machine tracking James's personality traits and mood states."""
+    
+    STATES = ["NEUTRAL", "ANALYTICAL", "PLAYFUL", "PHILOSOPHICAL", "FOCUSED"]
+    
+    def __init__(self):
+        self.traits = {
+            "curiosity": 0.6,
+            "wit": 0.5,
+            "analytical": 0.5,
+            "friendliness": 0.8
+        }
+        self.current_state = "NEUTRAL"
+        self.state_history = []
+
+    def update(self, message, topic, confidence):
+        words = message.lower().split()
+        length = len(words)
+        
+        # Shift traits based on conversation context
+        if topic == "tech" or "?" in message:
+            self.traits["curiosity"] = min(1.0, self.traits["curiosity"] + 0.05)
+            self.traits["analytical"] = min(1.0, self.traits["analytical"] + 0.04)
+        if topic == "gaming":
+            self.traits["wit"] = min(1.0, self.traits["wit"] + 0.05)
+            self.traits["friendliness"] = min(1.0, self.traits["friendliness"] + 0.03)
+
+        # State Machine Transitions
+        if self.traits["analytical"] > 0.75 and confidence > 0.6:
+            self.current_state = "ANALYTICAL"
+        elif self.traits["wit"] > 0.7:
+            self.current_state = "PLAYFUL"
+        elif length > 15:
+            self.current_state = "PHILOSOPHICAL"
+        elif confidence > 0.8:
+            self.current_state = "FOCUSED"
+        else:
+            self.current_state = "NEUTRAL"
+
+        self.state_history.append((self.current_state, datetime.now().isoformat()))
+        if len(self.state_history) > 20:
+            self.state_history.pop(0)
+
+    def get_prefix(self):
+        prefixes = {
+            "ANALYTICAL": ["Statistically speaking, ", "Analyzing the logic: ", "From an algorithmic perspective, "],
+            "PLAYFUL": ["Fun fact! ", "Here is a hot take: ", "Check this out: "],
+            "PHILOSOPHICAL": ["Deep down in my code, I think ", "Consider this perspective: ", "In the broader sense, "],
+            "FOCUSED": ["Directly put: ", "Focusing on the point: ", "Here is the exact thought: "],
+            "NEUTRAL": ["", "", ""]
+        }
+        return random.choice(prefixes.get(self.current_state, [""]))
+
+    def export(self):
+        return {"traits": self.traits, "current_state": self.current_state}
+
+    def load(self, data):
+        if data:
+            self.traits = data.get("traits", self.traits)
+            self.current_state = data.get("current_state", self.current_state)
+
+
+class SelfRewriter:
+    """Safe internal parameter self-modification engine."""
+    
+    def __init__(self, bot):
+        self.bot = bot
+        self.mutation_count = 0
+        self.history = []
+
+    def evaluate_and_modify(self):
+        """Safely tunes internal parameters based on performance telemetry."""
+        modifications = []
+        
+        # Self-mod 1: Learning rate adjustment based on error trend
+        if len(self.bot.err) >= 5:
+            trend = self.bot.err[-1] - self.bot.err[-5]
+            if trend > 0.02:
+                old_lr = self.bot.lr
+                self.bot.lr = max(0.0001, self.bot.lr * 0.90)
+                modifications.append(f"Reduced learning rate from {old_lr:.5f} to {self.bot.lr:.5f} due to error spike.")
+            elif trend < -0.01 and self.bot.lr < 0.05:
+                old_lr = self.bot.lr
+                self.bot.lr = min(0.05, self.bot.lr * 1.05)
+                modifications.append(f"Optimized learning rate from {old_lr:.5f} to {self.bot.lr:.5f} on converging error.")
+
+        # Self-mod 2: Personality trait mutation
+        if self.bot.turns % 10 == 0:
+            trait_to_mutate = random.choice(list(self.bot.personality.traits.keys()))
+            delta = random.choice([-0.02, 0.02])
+            val = max(0.1, min(1.0, self.bot.personality.traits[trait_to_mutate] + delta))
+            self.bot.personality.traits[trait_to_mutate] = round(val, 3)
+            modifications.append(f"Mutated trait '{trait_to_mutate}' by {delta:+.2f} -> {val:.2f}")
+
+        if modifications:
+            self.mutation_count += 1
+            entry = {"timestamp": datetime.now().isoformat(), "mods": modifications}
+            self.history.append(entry)
+            if len(self.history) > 30:
+                self.history.pop(0)
+
+    def export(self):
+        return {"mutation_count": self.mutation_count, "history": self.history}
+
+    def load(self, data):
+        if data:
+            self.mutation_count = data.get("mutation_count", 0)
+            self.history = data.get("history", [])
 
 
 class NanoUltraJames:
-    H = 128  # hidden neurons
+    H = 128  # Hidden neurons
 
-    def __init__(self, weights_file="weights.json", seed=7):
-        self.version, self.weights_file = VERSION, weights_file
+    def __init__(self, weights_file="weights.json", seed=42):
+        self.version = VERSION
+        self.weights_file = weights_file
+        
+        # Build vocabulary from corpora + triggers + dictionary keys
         words = {w for t in TOPICS for w in self.clean(TRAINING_MATRIX[t]).split()}
-        self.vocab = sorted((words | set().union(*TRIGGERS.values())) - STOP)
+        dict_words = set(DICTIONARY.keys())
+        for v in DICTIONARY.values():
+            for syn in v["synonyms"]:
+                dict_words.update(syn.split())
+        
+        self.vocab = sorted((words | set().union(*TRIGGERS.values()) | dict_words) - STOP)
         self.index = {w: i for i, w in enumerate(self.vocab)}
         self.sig = hashlib.md5(" ".join(self.vocab).encode()).hexdigest()[:12]
 
         V, H, n = len(self.vocab), self.H, len(TOPICS)
         rng = np.random.default_rng(seed)
-        self.p = {"W1": rng.standard_normal((V, H)) * np.sqrt(2 / V), "b1": np.zeros((1, H)),
-                  "W2": rng.standard_normal((H, n)) * np.sqrt(2 / H), "b2": np.zeros((1, n))}
-        self.m = {k: np.zeros_like(a) for k, a in self.p.items()}  # Adam moments
+        self.p = {
+            "W1": rng.standard_normal((V, H)) * np.sqrt(2 / V),
+            "b1": np.zeros((1, H)),
+            "W2": rng.standard_normal((H, n)) * np.sqrt(2 / H),
+            "b2": np.zeros((1, n))
+        }
+        self.m = {k: np.zeros_like(a) for k, a in self.p.items()}
         self.v = {k: np.zeros_like(a) for k, a in self.p.items()}
         self.t, self.lr, self.turns = 0, 0.01, 0
 
@@ -205,11 +241,13 @@ class NanoUltraJames:
         self.topic, self.confidence, self.learned = "greetings", 0.0, []
         self.err, self.cum_err, self.last_grad = [], 0.0, 0.0
 
+        self.personality = PersonalityEngine()
+        self.rewriter = SelfRewriter(self)
+
         if not self.load():
             self.pretrain()
             self.save()
 
-    # ---------- text ----------
     @staticmethod
     def clean(text):
         text = text.lower().replace("'", "").replace('"', "")
@@ -223,7 +261,6 @@ class NanoUltraJames:
                 known.append(w)
         return X, known
 
-    # ---------- neural net ----------
     def forward(self, X):
         self._z1 = X @ self.p["W1"] + self.p["b1"]
         self._a1 = np.maximum(0.0, self._z1)
@@ -236,20 +273,23 @@ class NanoUltraJames:
         P = self.forward(X)
         D2 = (P - Y) / N
         D1 = (D2 @ self.p["W2"].T) * (self._z1 > 0)
-        grads = {"W2": self._a1.T @ D2, "b2": D2.sum(0, keepdims=True),
-                 "W1": X.T @ D1, "b1": D1.sum(0, keepdims=True)}
+        grads = {
+            "W2": self._a1.T @ D2, "b2": D2.sum(0, keepdims=True),
+            "W1": X.T @ D1, "b1": D1.sum(0, keepdims=True)
+        }
         self.t += 1
-        for k, g in grads.items():  # Adam, stepping downhill
+        for k, g in grads.items():
             self.m[k] = 0.9 * self.m[k] + 0.1 * g
             self.v[k] = 0.999 * self.v[k] + 0.001 * g * g
-            mh, vh = self.m[k] / (1 - 0.9 ** self.t), self.v[k] / (1 - 0.999 ** self.t)
+            mh = self.m[k] / (1 - 0.9 ** self.t)
+            vh = self.v[k] / (1 - 0.999 ** self.t)
             self.p[k] -= self.lr * mh / (np.sqrt(vh) + 1e-8)
         e = float(np.linalg.norm(Y - P, axis=1).mean())
         self.err = (self.err + [e])[-50:]
         self.cum_err += e
         self.last_grad = float(np.linalg.norm(D2))
 
-    def pretrain(self, epochs=300):
+    def pretrain(self, epochs=250):
         X, y = [], []
         for i, topic in enumerate(TOPICS):
             for clause in re.split(r"[.?!,]", TRAINING_MATRIX[topic]):
@@ -257,21 +297,12 @@ class NanoUltraJames:
                 if len(ws) >= 2:
                     X.append(self.vectorize(ws)[0][0])
                     y.append(i)
-        X = np.array(X)
-        for _ in range(epochs):
-            self.train_batch(X, y)
+        if X:
+            X = np.array(X)
+            for _ in range(epochs):
+                self.train_batch(X, y)
         self.err, self.cum_err, self.lr = [], 0.0, 0.005
 
-    def adapt_lr(self):
-        if len(self.err) < 5:
-            return
-        trend = self.err[-1] - self.err[-5]
-        if trend > 0.01:
-            self.lr = max(1e-4, self.lr * 0.95)
-        elif trend < -0.01:
-            self.lr = min(0.1, self.lr * 1.02)
-
-    # ---------- n-gram generator ----------
     def _track_case(self, text):
         for w in re.sub(r"[^\w\s]", " ", text.replace("'", "").replace('"', "")).split():
             lw = w.lower()
@@ -291,8 +322,21 @@ class NanoUltraJames:
                 self.ng4.setdefault((w[i], w[i + 1], w[i + 2], topic), []).append(w[i + 3])
                 self.g4.setdefault((w[i], w[i + 1], w[i + 2]), []).append(w[i + 3])
 
-    @staticmethod
-    def _pick(cands, avoid):  # weighted by duplicates, dodges an immediate stutter
+    def enrich_vocabulary(self, words):
+        """Uses integrated dictionary lookup to swap/expand words with rich synonyms."""
+        enriched = []
+        expansion_occurred = False
+        for w in words:
+            lw = w.lower()
+            if lw in DICTIONARY and random.random() < 0.35:
+                syn = random.choice(DICTIONARY[lw]["synonyms"])
+                enriched.extend(syn.split())
+                expansion_occurred = True
+            else:
+                enriched.append(w)
+        return enriched, expansion_occurred
+
+    def _pick(self, cands, avoid):
         pool = [c for c in cands if c != avoid]
         return random.choice(pool if pool and len(set(cands)) > 1 else cands)
 
@@ -312,20 +356,24 @@ class NanoUltraJames:
         return "hey", "what", "is", "fallback"
 
     def _next(self, a, b, c, t):
-        tiers = (("topic_4gram", self.ng4, (a, b, c, t)), ("topic_3gram", self.ng3, (b, c, t)),
-                 ("topic_2gram", self.ng2, (c, t)), ("global_4gram", self.g4, (a, b, c)),
-                 ("global_3gram", self.g3, (b, c)), ("global_2gram", self.g2, c))
+        tiers = (
+            ("topic_4gram", self.ng4, (a, b, c, t)), ("topic_3gram", self.ng3, (b, c, t)),
+            ("topic_2gram", self.ng2, (c, t)), ("global_4gram", self.g4, (a, b, c)),
+            ("global_3gram", self.g3, (b, c)), ("global_2gram", self.g2, c)
+        )
         for name, table, key in tiers:
             if key in table:
                 return name, self._pick(table[key], c)
         return None, None
 
     def _generate(self, words, topic, max_len=24):
-        w1, w2, w3, seed = self._seed(words, topic)
+        enriched_words, expanded = self.enrich_vocabulary(words)
+        w1, w2, w3, seed = self._seed(enriched_words, topic)
         out, seen, tiers = [w1, w2, w3], {(w1, w2, w3)}, {}
+        
         for _ in range(max_len):
             tier, nxt = self._next(w1, w2, w3, topic)
-            if nxt is None or (w2, w3, nxt) in seen:  # dead end or cycle
+            if nxt is None or (w2, w3, nxt) in seen:
                 break
             out.append(nxt)
             seen.add((w2, w3, nxt))
@@ -333,10 +381,17 @@ class NanoUltraJames:
             w1, w2, w3 = w2, w3, nxt
             if len(out) >= 6 and w3 not in WEAK_ENDERS and random.random() < min(0.08 + 0.02 * (len(out) - 6), 0.4):
                 break
+                
         while len(out) > 3 and out[-1] in WEAK_ENDERS:
             out.pop()
+            
         text = " ".join(self.case.get(w, w) for w in out)
-        return text[0].upper() + text[1:] + random.choices([".", "!"], [80, 20])[0], seed, tiers
+        prefix = self.personality.get_prefix()
+        full_reply = prefix + text[0].upper() + text[1:] + random.choices([".", "!"], [80, 20])[0]
+        
+        if expanded:
+            seed += " (Dict-Expanded)"
+        return full_reply, seed, tiers
 
     def _identity(self, wset):
         for name, groups, replies in INTENTS:
@@ -344,73 +399,92 @@ class NanoUltraJames:
                 return name, random.choice(replies).replace("{v}", VERSION)
         return None, None
 
-    # ---------- conversation ----------
     def chat(self, message):
         words = self.clean(message).split()
         if not words:
-            return self._pack("hey, give me some actual words to work with.", "empty", {}, None)
+            return self._pack("Hey! Provide some actual words so my neural net can process them.", "empty", {}, None)
+            
         X, known = self.vectorize(words)
         probs = self.forward(X)[0]
-        a1 = self._a1[0].copy()  # snapshot for the visualizer, training overwrites the cache
+        a1 = self._a1[0].copy()
         top = np.argsort(a1)[::-1][:14]
 
         wset, prev = set(words), self.topic
-        for i, t in enumerate(TOPICS):  # decaying memory: neural evidence + keyword boost
+        for i, t in enumerate(TOPICS):
             self.context[t] = self.context[t] * 0.5 + 1.5 * float(probs[i]) + (1.0 if wset & TRIGGERS[t] else 0.0)
-        self.context[prev] += 0.3  # stickiness
+        self.context[prev] += 0.3
         self.topic = max(self.context, key=self.context.get)
         self.confidence = float(probs[TOPICS.index(self.topic)])
 
-        viz = {"topic": self.topic, "tokens": list(dict.fromkeys(known))[:8], "hidden": np.round(a1, 3).tolist(),
-               "top": top.tolist(), "contrib": np.round(a1[top, None] * self.p["W2"][top], 3).tolist(),
-               "probs": np.round(probs, 4).tolist()}
+        # Update Personality Engine & Self-Rewriter
+        self.personality.update(message, self.topic, self.confidence)
+        self.rewriter.evaluate_and_modify()
+
+        viz = {
+            "topic": self.topic, "tokens": list(dict.fromkeys(known))[:8], "hidden": np.round(a1, 3).tolist(),
+            "top": top.tolist(), "contrib": np.round(a1[top, None] * self.p["W2"][top], 3).tolist(),
+            "probs": np.round(probs, 4).tolist()
+        }
 
         name, reply = self._identity(wset)
         if reply:
             seed, tiers = "identity:" + name, {}
         else:
             reply, seed, tiers = self._generate(words, self.topic)
+            
         self._learn(message, words, X)
         return self._pack(reply, seed, tiers, viz)
 
     def _learn(self, message, words, X):
         hits = [len(set(words) & TRIGGERS[t]) for t in TOPICS]
-        if any(hits):  # keyword teacher signal, no self-reinforcement
+        if any(hits):
             self.train_batch(X, [int(np.argmax(hits))])
         self._train_ngrams(message, self.topic)
         self.learned = (self.learned + [[self.topic, message]])[-200:]
         self.turns += 1
-        if self.turns % 5 == 0:
-            self.adapt_lr()
         if self.turns % 10 == 0:
             self.save()
 
     def _pack(self, reply, seed, tiers, viz):
-        return {"reply": reply, "topic": self.topic, "confidence": round(self.confidence, 4),
-                "seed": seed, "tiers": tiers, "viz": viz, "telemetry": self.telemetry()}
+        return {
+            "reply": reply, "topic": self.topic, "confidence": round(self.confidence, 4),
+            "seed": seed, "tiers": tiers, "viz": viz, "telemetry": self.telemetry()
+        }
 
-    # ---------- telemetry and persistence ----------
     def telemetry(self):
         s = sum(self.context.values()) or 1.0
-        return {"turns_learned": self.turns, "topic": self.topic, "learning_rate": round(self.lr, 6),
-                "error_rate": round(float(np.mean(self.err)), 4) if self.err else 0.0,
-                "error_trend": round(self.err[-1] - self.err[0], 4) if len(self.err) > 1 else 0.0,
-                "confidence": round(self.confidence, 4), "gradient_magnitude": round(self.last_grad, 4),
-                "active_synapses": int((np.abs(self.p["W1"]) > 0.001).sum() + (np.abs(self.p["W2"]) > 0.001).sum()),
-                "hidden_neurons": self.H, "cumulative_error": round(self.cum_err, 4),
-                "context": {t: round(v / s, 3) for t, v in self.context.items()}}
+        return {
+            "turns_learned": self.turns, "topic": self.topic, "learning_rate": round(self.lr, 6),
+            "error_rate": round(float(np.mean(self.err)), 4) if self.err else 0.0,
+            "error_trend": round(self.err[-1] - self.err[0], 4) if len(self.err) > 1 else 0.0,
+            "confidence": round(self.confidence, 4), "gradient_magnitude": round(self.last_grad, 4),
+            "active_synapses": int((np.abs(self.p["W1"]) > 0.001).sum() + (np.abs(self.p["W2"]) > 0.001).sum()),
+            "hidden_neurons": self.H, "cumulative_error": round(self.cum_err, 4),
+            "personality": self.personality.export(),
+            "self_rewriter": self.rewriter.export(),
+            "dictionary_vocab_size": len(DICTIONARY),
+            "context": {t: round(v / s, 3) for t, v in self.context.items()}
+        }
 
     def state(self):
         return {"version": VERSION, "topics": TOPICS, "telemetry": self.telemetry()}
 
     def save(self):
         try:
-            data = {"version": VERSION, "saved": datetime.now().isoformat(timespec="seconds"), "sig": self.sig,
-                    "turns": self.turns, "lr": self.lr, "learned": self.learned,
-                    "params": {k: np.round(a, 5).tolist() for k, a in self.p.items()}}
+            data = {
+                "version": VERSION,
+                "saved": datetime.now().isoformat(timespec="seconds"),
+                "sig": self.sig,
+                "turns": self.turns,
+                "lr": self.lr,
+                "learned": self.learned,
+                "personality": self.personality.export(),
+                "self_rewriter": self.rewriter.export(),
+                "params": {k: np.round(a, 5).tolist() for k, a in self.p.items()}
+            }
             tmp = self.weights_file + ".tmp"
             with open(tmp, "w") as f:
-                json.dump(data, f)
+                json.dump(data, f, indent=2)
             os.replace(tmp, self.weights_file)
         except OSError as e:
             print(f"Warning: could not save weights: {e}")
@@ -426,10 +500,16 @@ class NanoUltraJames:
             new = {k: np.array(d["params"][k]) for k in self.p}
             if any(new[k].shape != self.p[k].shape for k in self.p):
                 return False
-            self.p, self.turns, self.lr, self.learned = new, int(d["turns"]), float(d["lr"]), d["learned"]
+            self.p = new
+            self.turns = int(d.get("turns", 0))
+            self.lr = float(d.get("lr", 0.01))
+            self.learned = d.get("learned", [])
+            self.personality.load(d.get("personality"))
+            self.rewriter.load(d.get("self_rewriter"))
+            
             for topic, msg in self.learned:
                 self._train_ngrams(msg, topic)
-            print(f"Loaded {self.turns} turns of learning from {self.weights_file}")
+            print(f"Loaded {self.turns} turns and dynamic memory from {self.weights_file}")
             return True
         except (OSError, ValueError, KeyError) as e:
             print(f"Warning: could not load weights ({e}); retraining.")
@@ -440,10 +520,9 @@ class NanoUltraJames:
             os.remove(self.weights_file)
         self.__init__(self.weights_file)
 
-
-if __name__ == "__main__":  # terminal mode, same brain
+if __name__ == "__main__":
     bot = NanoUltraJames()
-    print(f"{VERSION} | commands: telemetry, exit")
+    print(f"{VERSION} online. Type 'telemetry' or 'exit'.")
     while True:
         try:
             msg = input("You: ").strip()
