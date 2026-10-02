@@ -1,10 +1,13 @@
-"""NANO-ULTRA-JAMES backend. Serves index.html and a small JSON API. Standard library plus numpy.
-
-    pip install numpy
-    python backend.py            # then open http://localhost:8000 (Codespaces: open the forwarded port)
-
-Routes:  GET /  |  GET /api/state  |  POST /api/chat {"message": "..."}  |  POST /api/reset
 """
+GENERATIVE-NANO-JAMES HTTP Backend Server.
+Serves static frontend (index.html) and JSON REST API.
+Operates using Python standard libraries + NumPy.
+
+Run:
+    python backend.py
+Then access: http://localhost:8000
+"""
+
 import json
 import os
 import threading
@@ -13,9 +16,10 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from nano_ultra_james import VERSION, NanoUltraJames
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-brain = NanoUltraJames(os.path.join(ROOT, "weights.json"))
-lock = threading.Lock()  # the brain updates its own weights, so handle one request at a time
+WEIGHTS_FILE = os.path.join(ROOT, "weights.json")
 
+brain = NanoUltraJames(WEIGHTS_FILE)
+lock = threading.Lock()
 
 class Handler(BaseHTTPRequestHandler):
     def reply(self, data, code=200, ctype="application/json"):
@@ -43,27 +47,29 @@ class Handler(BaseHTTPRequestHandler):
             size = min(int(self.headers.get("Content-Length") or 0), 10_000)
             payload = json.loads(self.rfile.read(size) or b"{}")
         except ValueError:
-            return self.reply({"error": "request body must be JSON"}, 400)
+            return self.reply({"error": "request body must be valid JSON"}, 400)
+
         if path == "/api/chat":
             message = str(payload.get("message", "")).strip()[:500]
             if not message:
                 return self.reply({"error": "message is empty"}, 400)
             with lock:
                 return self.reply(brain.chat(message))
+
         if path == "/api/reset":
             with lock:
                 brain.reset()
                 return self.reply(brain.state())
+
         self.reply({"error": "not found"}, 404)
 
-    def log_message(self, fmt, *args):  # keep the console quiet
+    def log_message(self, fmt, *args):
         pass
-
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
-    print(f"{VERSION} is live on http://localhost:{port}  (Ctrl+C to stop and save)")
+    print(f"{VERSION} running on http://localhost:{port} (Ctrl+C to stop & save weights.json)")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
@@ -72,4 +78,4 @@ if __name__ == "__main__":
         with lock:
             brain.save()
         server.server_close()
-        print("Weights saved. Goodbye!")
+        print("System weights safely saved to weights.json. Server shut down.")
