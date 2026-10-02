@@ -91,7 +91,8 @@ dd { margin: 0; font-weight: 700; font-variant-numeric: tabular-nums; font-size:
 const BACKEND_URL = "https://generative-nano-james-backend.onrender.com";
 
 async function api(path, body) {
-  const r = await fetch(BACKEND_URL + path, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {});
+  const url = BACKEND_URL + path;
+  const r = await fetch(url, body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {});
   if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || r.statusText);
   return r.json();
 }
